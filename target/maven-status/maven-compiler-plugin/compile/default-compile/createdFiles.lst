@@ -1,5 +1,7 @@
-com/resumeanalyzer/ResumeParser.class
 com/resumeanalyzer/ResumeAnalyzer.class
+com/resumeanalyzer/config/ConfigManager.class
 module-info.class
 com/resumeanalyzer/ResumeAnalyzer$AnalysisResult.class
 com/resumeanalyzer/ResumeAnalyzerApp.class
+com/resumeanalyzer/ResumeParser.class
+com/resumeanalyzer/GroqAnalyzer.class

@@ -1,5 +1,6 @@
 package com.resumeanalyzer;
 
+import com.resumeanalyzer.config.ConfigManager;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -8,16 +9,25 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.Modality;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.Node;
 import java.io.File;
 import java.io.IOException;
+import org.commonmark.node.*;
+import org.commonmark.parser.Parser;
+import org.commonmark.renderer.html.HtmlRenderer;
+import javafx.scene.web.WebView;
 
 public class ResumeAnalyzerApp extends Application {
 
     private File selectedFile;
     private ComboBox<String> jobRoleComboBox;
-    private TextArea resultArea;
+    private WebView resultWebView;
+    private CheckBox aiAnalysisCheckBox;
+    private GroqAnalyzer groqAnalyzer;
+    private String groqApiKey;
     private static final String PRIMARY_COLOR = "#2196F3";
     private static final String SECONDARY_COLOR = "#64B5F6";
     private static final String SUCCESS_COLOR = "#4CAF50";
@@ -25,6 +35,9 @@ public class ResumeAnalyzerApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        // Try to get API key from environment variable
+        initializeGroqAnalyzer();
+
         primaryStage.setTitle("Resume Analyzer");
 
         // Create main layout with styling
@@ -81,6 +94,20 @@ public class ResumeAnalyzerApp extends Application {
         
         jobSection.getChildren().addAll(jobHeaderLabel, jobRoleComboBox);
 
+        // Add AI Analysis checkbox and configure button
+        HBox aiSection = new HBox(15);
+        aiSection.setAlignment(Pos.CENTER_LEFT);
+        
+        aiAnalysisCheckBox = new CheckBox("Include AI-Powered Analysis");
+        aiAnalysisCheckBox.setStyle("-fx-text-fill: " + PRIMARY_COLOR + ";");
+        
+        Button configureAiButton = new Button("Configure API Key");
+        styleButton(configureAiButton, SECONDARY_COLOR);
+        configureAiButton.setOnAction(e -> showApiKeyDialog(primaryStage));
+        
+        aiSection.getChildren().addAll(aiAnalysisCheckBox, configureAiButton);
+        updateAiControlsState();
+
         // Analyze button with improved styling
         Button analyzeButton = new Button("Analyze Resume");
         styleButton(analyzeButton, SUCCESS_COLOR);
@@ -92,27 +119,25 @@ public class ResumeAnalyzerApp extends Application {
         Label resultHeaderLabel = new Label("Analysis Results");
         resultHeaderLabel.setFont(Font.font("System", FontWeight.MEDIUM, 14));
         
-        resultArea = new TextArea();
-        resultArea.setEditable(false);
-        resultArea.setPrefRowCount(12);
-        resultArea.setWrapText(true);
-        resultArea.setStyle(
-            "-fx-control-inner-background: white;" +
+        resultWebView = new WebView();
+        resultWebView.setPrefHeight(400);
+        resultWebView.setStyle(
             "-fx-border-color: " + SECONDARY_COLOR + ";" +
             "-fx-border-radius: 4;" +
-            "-fx-background-radius: 4;" +
-            "-fx-padding: 10;"
+            "-fx-background-radius: 4;"
         );
         
-        resultSection.getChildren().addAll(resultHeaderLabel, resultArea);
+        resultSection.getChildren().addAll(resultHeaderLabel, resultWebView);
 
         // Add components to main layout with spacing
+        mainLayout.getChildren().clear();
         mainLayout.getChildren().addAll(
             headerLabel,
             createSeparator(),
             fileSection,
             createSeparator(),
             jobSection,
+            aiSection,
             analyzeButton,
             createSeparator(),
             resultSection
@@ -145,23 +170,37 @@ public class ResumeAnalyzerApp extends Application {
                 String selectedRole = jobRoleComboBox.getValue();
                 ResumeAnalyzer.AnalysisResult result = ResumeAnalyzer.analyzeResume(resumeText, selectedRole);
                 
-                // Display results with improved formatting
+                // Display results with improved formatting (markdown)
                 StringBuilder output = new StringBuilder();
-                output.append(String.format("📄 Resume Analysis for %s\n\n", selectedRole));
-                output.append(String.format("Overall Match Score: %.1f%%\n", result.getScore()));
-                output.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n");
+                output.append(String.format("# 📄 Resume Analysis for %s\n\n", selectedRole));
+                output.append(String.format("**Overall Match Score:** %.1f%%\n\n", result.getScore()));
+                output.append("---\n\n");
                 
-                output.append("✅ Found Keywords:\n");
+                output.append("## ✅ Found Keywords\n");
                 for (String keyword : result.getFoundKeywords()) {
-                    output.append("  • ").append(keyword).append("\n");
+                    output.append("- ").append(keyword).append("\n");
                 }
                 
-                output.append("\n💡 Improvement Suggestions:\n");
+                output.append("\n## 💡 Improvement Suggestions\n");
                 for (String suggestion : result.getSuggestions()) {
-                    output.append("  • ").append(suggestion).append("\n");
+                    output.append("- ").append(suggestion).append("\n");
+                }
+
+                // Add AI analysis if enabled
+                if (aiAnalysisCheckBox.isSelected() && groqAnalyzer != null) {
+                    output.append("\n---\n\n");
+                    output.append("# 🤖 AI-Powered Analysis\n\n");
+                    try {
+                        String aiAnalysis = groqAnalyzer.analyzeResume(resumeText, selectedRole);
+                        output.append(aiAnalysis);
+                    } catch (IOException ex) {
+                        output.append("⚠️ AI analysis failed: ").append(ex.getMessage()).append("\n");
+                    }
                 }
                 
-                resultArea.setText(output.toString());
+                // Convert markdown to HTML and display in WebView
+                String html = markdownToHtml(output.toString());
+                resultWebView.getEngine().loadContent(html);
                 
             } catch (IOException ex) {
                 showAlert("Error reading file: " + ex.getMessage());
@@ -221,6 +260,111 @@ public class ResumeAnalyzerApp extends Application {
         alert.setHeaderText(null);
         alert.setContentText(message);
         alert.showAndWait();
+    }
+
+    private void initializeGroqAnalyzer() {
+        // First try to get API key from environment variable
+        groqApiKey = System.getenv("GROQ_API_KEY");
+        
+        // If not found in environment, try from config file
+        if (groqApiKey == null || groqApiKey.isEmpty()) {
+            groqApiKey = ConfigManager.getInstance().getGroqApiKey();
+        }
+
+        // Initialize analyzer if we have a valid key
+        if (groqApiKey != null && !groqApiKey.isEmpty() && !groqApiKey.equals("your_api_key_here")) {
+            try {
+                groqAnalyzer = new GroqAnalyzer(groqApiKey);
+            } catch (IllegalArgumentException e) {
+                groqAnalyzer = null;
+                groqApiKey = null;
+            }
+        }
+    }
+
+    private void showApiKeyDialog(Stage owner) {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("Configure Groq API Key");
+        dialog.setHeaderText("Enter your Groq API Key");
+        dialog.initOwner(owner);
+        dialog.initModality(Modality.APPLICATION_MODAL);
+
+        // Set the button types
+        ButtonType saveButtonType = new ButtonType("Save", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveButtonType, ButtonType.CANCEL);
+
+        // Create the API key input field
+        GridPane grid = new GridPane();
+        grid.setHgap(10);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(20, 150, 10, 10));
+
+        PasswordField apiKeyField = new PasswordField();
+        apiKeyField.setPromptText("Enter API key");
+        if (groqApiKey != null) {
+            apiKeyField.setText(groqApiKey);
+        }
+
+        grid.add(new Label("API Key:"), 0, 0);
+        grid.add(apiKeyField, 1, 0);
+
+        // Link for getting API key
+        Hyperlink getApiLink = new Hyperlink("Get a Groq API key");
+        getApiLink.setOnAction(e -> {
+            try {
+                getHostServices().showDocument("https://console.groq.com/");
+            } catch (Exception ex) {
+                showAlert("Could not open browser. Please visit https://console.groq.com/ manually.");
+            }
+        });
+        grid.add(getApiLink, 1, 1);
+
+        dialog.getDialogPane().setContent(grid);
+
+        // Enable/Disable save button depending on whether an API key was entered
+        Node saveButton = dialog.getDialogPane().lookupButton(saveButtonType);
+        saveButton.setDisable(true);
+
+        apiKeyField.textProperty().addListener((observable, oldValue, newValue) -> 
+            saveButton.setDisable(newValue.trim().isEmpty()));
+
+        // Convert the result to the API key when the save button is clicked
+        dialog.setResultConverter(dialogButton -> {
+            if (dialogButton == saveButtonType) {
+                return apiKeyField.getText();
+            }
+            return null;
+        });
+
+        // Handle the result
+        dialog.showAndWait().ifPresent(apiKey -> {
+            try {
+                groqAnalyzer = new GroqAnalyzer(apiKey);
+                groqApiKey = apiKey;
+                updateAiControlsState();
+                showAlert("API key configured successfully!");
+            } catch (IllegalArgumentException e) {
+                showAlert("Invalid API key. Please check and try again.");
+            }
+        });
+    }
+
+    private void updateAiControlsState() {
+        boolean hasApiKey = groqAnalyzer != null;
+        aiAnalysisCheckBox.setDisable(!hasApiKey);
+        if (!hasApiKey) {
+            aiAnalysisCheckBox.setSelected(false);
+            aiAnalysisCheckBox.setTooltip(new Tooltip("Configure API key to enable AI analysis"));
+        } else {
+            aiAnalysisCheckBox.setTooltip(new Tooltip("Use AI to get detailed resume analysis"));
+        }
+    }
+
+    private String markdownToHtml(String markdown) {
+        Parser parser = Parser.builder().build();
+        org.commonmark.node.Node document = parser.parse(markdown);
+        HtmlRenderer renderer = HtmlRenderer.builder().build();
+        return renderer.render(document);
     }
 
     public static void main(String[] args) {

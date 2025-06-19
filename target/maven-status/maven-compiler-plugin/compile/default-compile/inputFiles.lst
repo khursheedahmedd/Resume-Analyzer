@@ -1,4 +1,6 @@
-/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume Analyzer/src/main/java/com/resumeanalyzer/ResumeAnalyzer.java
-/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume Analyzer/src/main/java/com/resumeanalyzer/ResumeAnalyzerApp.java
-/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume Analyzer/src/main/java/module-info.java
-/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume Analyzer/src/main/java/com/resumeanalyzer/ResumeParser.java
+/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume-Analyzer/src/main/java/com/resumeanalyzer/config/ConfigManager.java
+/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume-Analyzer/src/main/java/com/resumeanalyzer/ResumeParser.java
+/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume-Analyzer/src/main/java/com/resumeanalyzer/ResumeAnalyzerApp.java
+/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume-Analyzer/src/main/java/com/resumeanalyzer/ResumeAnalyzer.java
+/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume-Analyzer/src/main/java/module-info.java
+/Users/macuser/Desktop/University/6th Semester/SCD Lab/Resume-Analyzer/src/main/java/com/resumeanalyzer/GroqAnalyzer.java
