@@ -1,0 +1,5 @@
+com/resumeanalyzer/ResumeParser.class
+com/resumeanalyzer/ResumeAnalyzer.class
+module-info.class
+com/resumeanalyzer/ResumeAnalyzer$AnalysisResult.class
+com/resumeanalyzer/ResumeAnalyzerApp.class
